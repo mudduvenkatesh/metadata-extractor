@@ -3,6 +3,15 @@
 A **Spring Boot 4.1.0** application that extracts relational database schema metadata from all 
 registered data repos and data sources
 ## Data Connector and Data Platform Ontology
+
+1. External Secret Store (most common)
+   Store the sensitive value in a vault (HashiCorp Vault, AWS Secrets Manager, etc.) and put only a reference URI in the RDF:
+   turtleex:subject schema:additionalProperty [
+   a schema:PropertyValue ;
+   schema:name  "apiKey" ;
+   schema:value <vault://secret/my-service/apiKey>   # reference, not the value
+   ] .
+
 ```
 DataRepository
     |
