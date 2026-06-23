@@ -1,0 +1,22 @@
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+  cloud:
+    vault:
+      enabled: false   # disable real Vault connectivity in tests
+
+rdf:
+  base-namespace: "http://example.org/schema#"
+  output-directory: "./target/test-output"
+
+vault:
+  kv-engine: secret
+  kv-version: 2
+  secret-path-prefix: "rdf-extractor"
+  enabled: false   # VaultSecretService.readSecret() will not be called in unit tests
+
+logging:
+  level:
+    com.rdf.metadata: DEBUG
+    org.eclipse.rdf4j: WARN

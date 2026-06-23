@@ -1,0 +1,48 @@
+spring:
+  cloud:
+    vault:
+      # ── Connection ──────────────────────────────────────────────────────────
+      # Vault server address
+      host: ${VAULT_HOST:localhost}
+      port: ${VAULT_PORT:8200}
+      scheme: ${VAULT_SCHEME:https}
+
+      # ── Authentication ───────────────────────────────────────────────────────
+      # Supported methods: token | approle | kubernetes | aws | gcp | azure
+      authentication: ${VAULT_AUTH_METHOD:TOKEN}
+
+      # Token-based auth (simplest — suitable for local dev and CI)
+      token: ${VAULT_TOKEN:}
+
+      # AppRole auth (recommended for production service accounts)
+      app-role:
+        role-id: ${VAULT_APP_ROLE_ID:}
+        secret-id: ${VAULT_APP_ROLE_SECRET_ID:}
+        role: ${VAULT_APP_ROLE_NAME:rdf-metadata-extractor}
+        app-role-path: approle
+
+      # Kubernetes auth (recommended for k8s deployments)
+      kubernetes:
+        role: ${VAULT_K8S_ROLE:rdf-metadata-extractor}
+        kubernetes-path: kubernetes
+        service-account-token-file: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+      # ── KV Backend (used for Spring Cloud Vault property injection) ────────────
+      # This controls which paths are loaded into the Spring Environment at startup.
+      # The VaultSecretService does runtime reads independently of this.
+      kv:
+        enabled: true
+        backend: secret
+        profile-separator: "/"
+        default-context: ${spring.application.name}
+
+      # ── TLS ─────────────────────────────────────────────────────────────────
+      ssl:
+        trust-store: ${VAULT_TRUSTSTORE:}
+        trust-store-password: ${VAULT_TRUSTSTORE_PASSWORD:}
+
+      # ── Failsafe ─────────────────────────────────────────────────────────────
+      # Prevent startup failure when Vault is unreachable in local dev
+      fail-fast: ${VAULT_FAIL_FAST:false}
+      connection-timeout: 5000
+      read-timeout: 15000

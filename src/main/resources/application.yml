@@ -1,0 +1,48 @@
+spring:
+  application:
+    name: rdf-metadata-extractor
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+
+server:
+  port: 8080
+
+# ─── RDF Namespace ────────────────────────────────────────────────────────────
+rdf:
+  base-namespace: "http://example.org/schema#"
+  owl-namespace: "http://www.w3.org/2002/07/owl#"
+  shacl-namespace: "http://www.w3.org/ns/shacl#"
+  xsd-namespace: "http://www.w3.org/2001/XMLSchema#"
+  output-directory: "./output"
+
+# ─── HashiCorp Vault ──────────────────────────────────────────────────────────
+#
+# Spring Cloud Vault bootstrap config (spring.cloud.vault.*) lives in
+# bootstrap.yml and is loaded before the application context.
+#
+# The vault.* block below is the application-level config read by VaultProperties.
+#
+vault:
+  # KV secrets engine mount point (must match your Vault configuration)
+  kv-engine: secret
+  # 1 = KV v1, 2 = KV v2 (default: 2)
+  kv-version: 2
+  # Optional prefix prepended to every vaultSecretPath in a request.
+  # e.g. vaultSecretPath="prod/snowflake" → reads secret/data/rdf-extractor/prod/snowflake
+  secret-path-prefix: "rdf-extractor"
+  # Set to false to disable Vault integration entirely (useful in local dev)
+  enabled: true
+
+# ─── OpenAPI ──────────────────────────────────────────────────────────────────
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  level:
+    com.rdf.metadata: DEBUG
+    org.eclipse.rdf4j: WARN
+    org.springframework.vault: INFO
