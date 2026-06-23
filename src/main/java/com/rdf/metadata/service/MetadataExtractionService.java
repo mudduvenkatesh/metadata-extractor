@@ -5,12 +5,12 @@ import com.rdf.metadata.connector.DatabaseConnectorFactory;
 import com.rdf.metadata.extractor.AbstractJdbcMetadataExtractor;
 import com.rdf.metadata.extractor.MetadataExtractorFactory;
 import com.rdf.metadata.model.*;
-import com.rdf.metadata.rdf.OntologyBuilder;
-import com.rdf.metadata.rdf.RdfSerializer;
+import com.rdf.metadata.rdf.*;
 import com.rdf.metadata.shacl.ShaclShapesBuilder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.rdf4j.model.Model;
+import org.eclipse.rdf4j.model.impl.LinkedHashModel;
 import org.springframework.stereotype.Service;
 
 import java.sql.Connection;
@@ -19,16 +19,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Orchestrates the full pipeline:
- * <ol>
- *   <li>Resolve the {@link DatabaseConnector} for the requested database type</li>
- *   <li>Open a JDBC connection</li>
- *   <li>Extract relational schema metadata</li>
- *   <li>Build an OWL ontology (RDF4J {@link Model})</li>
- *   <li>Build a SHACL shapes graph (RDF4J {@link Model})</li>
- *   <li>Serialize both models via Rio</li>
- *   <li>Return a populated {@link ExtractionResult}</li>
- * </ol>
+ * Orchestrates the full extraction → transformation → serialization pipeline.
+ *
+ * <p>When {@code includeOwlAxioms} is requested, builds four separated ontology
+ * graphs via {@link OntologyOrchestrator} and returns them individually plus
+ * a merged union in {@link ExtractionResult#getOntologyRdf()}.
  */
 @Slf4j
 @Service
@@ -37,7 +32,7 @@ public class MetadataExtractionService {
 
     private final DatabaseConnectorFactory connectorFactory;
     private final MetadataExtractorFactory  extractorFactory;
-    private final OntologyBuilder           ontologyBuilder;
+    private final OntologyOrchestrator      ontologyOrchestrator;
     private final ShaclShapesBuilder        shaclShapesBuilder;
     private final RdfSerializer             rdfSerializer;
 
@@ -62,19 +57,41 @@ public class MetadataExtractionService {
         int fkCount     = schemaMetadata.getTables().stream().mapToInt(t -> t.getForeignKeys().size()).sum();
         log.info("Extracted {} tables, {} columns, {} FKs", tableCount, columnCount, fkCount);
 
-        // ── OWL ontology ─────────────────────────────────────────────────────
-        String ontologyRdf = null;
-        int rdfTriples     = 0;
+        // ── Separated ontology graphs ─────────────────────────────────────────
+        String vocabRdf   = null;
+        String repoRdf    = null;
+        String schemaRdf  = null;
+        String linkingRdf = null;
+        String mergedRdf  = null;
+        int    rdfTriples = 0;
 
         if (request.isIncludeOwlAxioms()) {
-            Model ontModel = ontologyBuilder.build(schemaMetadata);
-            ontologyRdf    = rdfSerializer.serialize(ontModel, request.getRdfFormat());
-            rdfTriples     = ontModel.size();
-            log.info("OWL ontology: {} triples", rdfTriples);
+            SeparatedOntologyResult ontologies = ontologyOrchestrator.buildAll(schemaMetadata);
+
+            vocabRdf   = rdfSerializer.serialize(ontologies.getRepoVocabularyModel(),  request.getRdfFormat());
+            repoRdf    = rdfSerializer.serialize(ontologies.getRepoInstanceModel(),    request.getRdfFormat());
+            schemaRdf  = rdfSerializer.serialize(ontologies.getSchemaOntologyModel(), request.getRdfFormat());
+            linkingRdf = rdfSerializer.serialize(ontologies.getLinkingOntologyModel(),request.getRdfFormat());
+
+            // Merged union for backward-compatible consumers
+            Model merged = new LinkedHashModel();
+            merged.addAll(ontologies.getRepoVocabularyModel());
+            merged.addAll(ontologies.getRepoInstanceModel());
+            merged.addAll(ontologies.getSchemaOntologyModel());
+            merged.addAll(ontologies.getLinkingOntologyModel());
+            mergedRdf  = rdfSerializer.serialize(merged, request.getRdfFormat());
+            rdfTriples = ontologies.totalTriples();
+
+            log.info("Ontology graphs: vocab={}, repo={}, schema={}, linking={}, total={}",
+                    ontologies.getRepoVocabularyModel().size(),
+                    ontologies.getRepoInstanceModel().size(),
+                    ontologies.getSchemaOntologyModel().size(),
+                    ontologies.getLinkingOntologyModel().size(),
+                    rdfTriples);
         }
 
         // ── SHACL shapes ──────────────────────────────────────────────────────
-        String shaclRdf    = null;
+        String shaclRdf     = null;
         int shaclShapeCount = 0;
 
         if (request.isIncludeShaclShapes()) {
@@ -84,7 +101,6 @@ public class MetadataExtractionService {
             log.info("SHACL shapes: {} NodeShapes", shaclShapeCount);
         }
 
-        // Warn on empty tables (likely restricted views)
         schemaMetadata.getTables().stream()
                 .filter(t -> t.getColumns().isEmpty())
                 .forEach(t -> warnings.add(
@@ -100,16 +116,17 @@ public class MetadataExtractionService {
                 .rdfTriplesGenerated(rdfTriples)
                 .shaclShapesGenerated(shaclShapeCount)
                 .extractedAt(Instant.now())
-                .ontologyRdf(ontologyRdf)
+                .repoVocabularyRdf(vocabRdf)
+                .repoInstanceRdf(repoRdf)
+                .schemaOntologyRdf(schemaRdf)
+                .linkingOntologyRdf(linkingRdf)
+                .ontologyRdf(mergedRdf)
                 .shaclRdf(shaclRdf)
                 .format(request.getRdfFormat())
                 .warnings(warnings)
                 .build();
     }
 
-    /**
-     * Extract schema metadata only (no RDF transformation).
-     */
     public SchemaMetadata previewMetadata(ExtractionRequest request) {
         DatabaseConnector             connector = connectorFactory.getConnector(request.getDatabaseType());
         AbstractJdbcMetadataExtractor extractor = extractorFactory.getExtractor(request.getDatabaseType());

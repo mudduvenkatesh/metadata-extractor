@@ -45,7 +45,7 @@ import java.util.Properties;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class   SnowflakeDatabaseConnector implements DatabaseConnector {
+public class SnowflakeDatabaseConnector implements DatabaseConnector {
 
     private static final String DRIVER_CLASS = "net.snowflake.client.jdbc.SnowflakeDriver";
 

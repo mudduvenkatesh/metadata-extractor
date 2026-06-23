@@ -31,6 +31,13 @@ public abstract class AbstractJdbcMetadataExtractor implements SchemaMetadataExt
                     .databaseType(supportedType().name())
                     .databaseName(catalog)
                     .schemaName(schema)
+                    // ── Connection properties for DataRepository RDF node ──────
+                    .host(request.getHost())
+                    .port(request.getPort())
+                    .jdbcUrl(request.getJdbcUrl())
+                    .warehouse(request.getWarehouse())
+                    .role(request.getRole())
+                    .authMode(request.getAuthMode() != null ? request.getAuthMode().name() : null)
                     .tables(tables)
                     .build();
 
