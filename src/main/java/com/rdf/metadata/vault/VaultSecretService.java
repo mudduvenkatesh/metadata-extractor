@@ -71,7 +71,7 @@ public class VaultSecretService {
      *   <li>KV v1: {@code <kvEngine>/<prefix>/<path>}</li>
      * </ul>
      */
-    String resolvePath(String rawSecretPath) {
+    public String resolvePath(String rawSecretPath) {
         // Remove all leading/trailing '/' from each segment before joining
         String engine  = stripSlashes(vaultProperties.getKvEngine());
         String prefix  = vaultProperties.getSecretPathPrefix();
@@ -100,7 +100,7 @@ public class VaultSecretService {
      * <p>
      * Uses index scanning rather than regex to avoid allocations on the hot path.
      */
-    static String stripSlashes(String value) {
+    public static String stripSlashes(String value) {
         if (value == null || value.isEmpty()) return "";
         int start = 0;
         int end   = value.length();

@@ -169,7 +169,7 @@ class DynamicSqlGeneratorTest {
         // PK should appear in bindParams but only in WHERE position (last)
         assertThat(stmt.getBindParameters()).contains("ORDER_ID");
         assertThat(stmt.getBindParameters()).contains("STATUS");
-        assertThat(stmt.getBindParameters()).doesNotContain("CUSTOMER_ID"); // it's FK, not updatable directly... actually it is, check it's there
+        assertThat(stmt.getBindParameters()).contains("CUSTOMER_ID"); // FK columns are updatable
     }
 
     // ─── DELETE BY PK ─────────────────────────────────────────────────────────

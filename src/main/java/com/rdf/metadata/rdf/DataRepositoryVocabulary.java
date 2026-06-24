@@ -184,6 +184,7 @@ public final class DataRepositoryVocabulary {
      * {@code ExtractionRecord} to the named graph IRI that holds its full snapshot.
      */
     public static final IRI namedGraph      = iri("namedGraph");
+    public static final IRI hasShapes       = iri("hasShapes");
 
     // ── Legacy versioning terms (kept for backward compat) ───────────────────
 

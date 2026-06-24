@@ -114,7 +114,7 @@ public final class SnowflakeKeyPairLoader {
      * Strip PEM armour headers/footers and decode the Base64 body to raw DER bytes.
      * Accepts both {@code BEGIN PRIVATE KEY} and {@code BEGIN ENCRYPTED PRIVATE KEY} blocks.
      */
-    static byte[] pemToDer(String pem) {
+    public static byte[] pemToDer(String pem) {
         String stripped = pem.trim()
                 // Remove both unencrypted and encrypted PEM headers/footers
                 .replace("-----BEGIN PRIVATE KEY-----", "")

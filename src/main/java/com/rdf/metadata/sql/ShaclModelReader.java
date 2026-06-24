@@ -282,7 +282,7 @@ public class ShaclModelReader {
      * Convert a camelCase property local name back to UPPER_SNAKE_CASE SQL column name.
      * e.g. {@code "orderId"} → {@code "ORDER_ID"}
      */
-    static String camelToUpperSnake(String camel) {
+    public static String camelToUpperSnake(String camel) {
         if (camel == null || camel.isEmpty()) return camel;
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < camel.length(); i++) {

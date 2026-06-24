@@ -68,6 +68,33 @@ public final class IriUtils {
     }
 
     /**
+     * Build a named IRI for a SHACL PropertyShape derived from a data column.
+     * Pattern: {@code <base><TableShape>/<camelCaseColumn>Shape}
+     * e.g. {@code http://example.org/schema#OrdersShape/orderDateShape}
+     */
+    public static String propertyShapeIri(String baseNs, String tableName, String columnName) {
+        return nodeShapeIri(baseNs, tableName) + "/" + toCamelCase(columnName) + "Shape";
+    }
+
+    /**
+     * Build a named IRI for a SHACL PropertyShape derived from a FK column.
+     * Pattern: {@code <base><TableShape>/<objectPropertyLocalName>Shape}
+     * e.g. {@code http://example.org/schema#OrdersShape/hasCustomersShape}
+     */
+    public static String fkPropertyShapeIri(String baseNs, String fkTable, String pkTable) {
+        return nodeShapeIri(baseNs, fkTable) + "/has" + toPascalCase(pkTable) + "Shape";
+    }
+
+    /**
+     * Build a named IRI for a SHACL SPARQLConstraint derived from a named DB constraint.
+     * Pattern: {@code <base><TableShape>/constraint/<ConstraintName>}
+     * e.g. {@code http://example.org/schema#OrdersShape/constraint/CHK_PRICE}
+     */
+    public static String constraintShapeIri(String baseNs, String tableName, String constraintName) {
+        return nodeShapeIri(baseNs, tableName) + "/constraint/" + sanitise(constraintName);
+    }
+
+    /**
      * Sanitise a raw string for use as an IRI local name (remove illegal chars).
      */
     public static String sanitise(String raw) {

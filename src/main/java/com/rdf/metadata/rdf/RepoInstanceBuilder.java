@@ -202,7 +202,7 @@ public class RepoInstanceBuilder {
                 base + "vocabulary/datarepository");
     }
 
-    static IRI tableIndividualIri(String base, String tableName) {
+    public static IRI tableIndividualIri(String base, String tableName) {
         return SimpleValueFactory.getInstance().createIRI(
                 base + "repo/table/" + IriUtils.toPascalCase(tableName));
     }

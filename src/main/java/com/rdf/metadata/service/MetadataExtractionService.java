@@ -7,8 +7,10 @@ import com.rdf.metadata.extractor.MetadataExtractorFactory;
 import com.rdf.metadata.model.*;
 import com.rdf.metadata.rdf.*;
 import com.rdf.metadata.shacl.ShaclShapesBuilder;
+import com.rdf.metadata.versioning.SchemaVersionRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.Model;
 import org.eclipse.rdf4j.model.impl.LinkedHashModel;
 import org.springframework.stereotype.Service;
@@ -21,9 +23,9 @@ import java.util.List;
 /**
  * Orchestrates the full extraction → transformation → serialization pipeline.
  *
- * <p>When {@code includeOwlAxioms} is requested, builds four separated ontology
- * graphs via {@link OntologyOrchestrator} and returns them individually plus
- * a merged union in {@link ExtractionResult#getOntologyRdf()}.
+ * <p>Every successful extraction also registers the snapshot and its SHACL shapes
+ * with the {@link SchemaVersionRegistry}, making the latest shapes queryable at
+ * any time without re-extracting from the database.
  */
 @Slf4j
 @Service
@@ -35,6 +37,7 @@ public class MetadataExtractionService {
     private final OntologyOrchestrator      ontologyOrchestrator;
     private final ShaclShapesBuilder        shaclShapesBuilder;
     private final RdfSerializer             rdfSerializer;
+    private final SchemaVersionRegistry     versionRegistry;
 
     public ExtractionResult extract(ExtractionRequest request) {
         List<String> warnings = new ArrayList<>();
@@ -58,22 +61,15 @@ public class MetadataExtractionService {
         log.info("Extracted {} tables, {} columns, {} FKs", tableCount, columnCount, fkCount);
 
         // ── Separated ontology graphs ─────────────────────────────────────────
-        String vocabRdf   = null;
-        String repoRdf    = null;
-        String schemaRdf  = null;
-        String linkingRdf = null;
-        String mergedRdf  = null;
-        int    rdfTriples = 0;
+        String vocabRdf   = null, repoRdf = null, schemaRdf = null, linkingRdf = null, mergedRdf = null;
+        int rdfTriples    = 0;
 
         if (request.isIncludeOwlAxioms()) {
             SeparatedOntologyResult ontologies = ontologyOrchestrator.buildAll(schemaMetadata);
-
             vocabRdf   = rdfSerializer.serialize(ontologies.getRepoVocabularyModel(),  request.getRdfFormat());
             repoRdf    = rdfSerializer.serialize(ontologies.getRepoInstanceModel(),    request.getRdfFormat());
             schemaRdf  = rdfSerializer.serialize(ontologies.getSchemaOntologyModel(), request.getRdfFormat());
             linkingRdf = rdfSerializer.serialize(ontologies.getLinkingOntologyModel(),request.getRdfFormat());
-
-            // Merged union for backward-compatible consumers
             Model merged = new LinkedHashModel();
             merged.addAll(ontologies.getRepoVocabularyModel());
             merged.addAll(ontologies.getRepoInstanceModel());
@@ -81,25 +77,21 @@ public class MetadataExtractionService {
             merged.addAll(ontologies.getLinkingOntologyModel());
             mergedRdf  = rdfSerializer.serialize(merged, request.getRdfFormat());
             rdfTriples = ontologies.totalTriples();
-
-            log.info("Ontology graphs: vocab={}, repo={}, schema={}, linking={}, total={}",
-                    ontologies.getRepoVocabularyModel().size(),
-                    ontologies.getRepoInstanceModel().size(),
-                    ontologies.getSchemaOntologyModel().size(),
-                    ontologies.getLinkingOntologyModel().size(),
-                    rdfTriples);
         }
 
-        // ── SHACL shapes ──────────────────────────────────────────────────────
+        // ── SHACL shapes — always build (needed for registry) ─────────────────
+        Model shaclModel    = shaclShapesBuilder.build(schemaMetadata);
+        int shaclShapeCount = tableCount;
         String shaclRdf     = null;
-        int shaclShapeCount = 0;
 
         if (request.isIncludeShaclShapes()) {
-            Model shaclModel = shaclShapesBuilder.build(schemaMetadata);
-            shaclRdf         = rdfSerializer.serialize(shaclModel, request.getRdfFormat());
-            shaclShapeCount  = tableCount;
+            shaclRdf = rdfSerializer.serialize(shaclModel, request.getRdfFormat());
             log.info("SHACL shapes: {} NodeShapes", shaclShapeCount);
         }
+
+        // ── Register this extraction + shapes in the version registry ─────────
+        IRI shapesIri = versionRegistry.register(schemaMetadata, shaclModel);
+        log.info("Shapes registered at <{}>", shapesIri.getLocalName());
 
         schemaMetadata.getTables().stream()
                 .filter(t -> t.getColumns().isEmpty())
@@ -127,10 +119,39 @@ public class MetadataExtractionService {
                 .build();
     }
 
+    /**
+     * Build SHACL shapes from a {@link SchemaMetadata} already in memory and
+     * register them. Used by evolution tests that construct metadata directly.
+     *
+     * @return serialized Turtle of the shapes
+     */
+    public String extractAndRegisterShapes(SchemaMetadata schemaMetadata) {
+        Model shaclModel = shaclShapesBuilder.build(schemaMetadata);
+        versionRegistry.register(schemaMetadata, shaclModel);
+        log.info("Registered shapes for {}/{} — {} tables",
+                schemaMetadata.getDatabaseName(), schemaMetadata.getSchemaName(),
+                schemaMetadata.getTables().size());
+        return rdfSerializer.serialize(shaclModel, RdfFormat.TURTLE);
+    }
+
+    /**
+     * Return the current (latest) SHACL shapes for a db/schema as Turtle.
+     */
+    public String latestShapes(String databaseName, String schemaName) {
+        Model shapes = versionRegistry.latestShapes(databaseName, schemaName);
+        return rdfSerializer.serialize(shapes, RdfFormat.TURTLE);
+    }
+
+    /**
+     * List all extraction records for a db/schema, newest first.
+     */
+    public List<java.util.Map<String, String>> listExtractions(String databaseName, String schemaName) {
+        return versionRegistry.listExtractions(databaseName, schemaName);
+    }
+
     public SchemaMetadata previewMetadata(ExtractionRequest request) {
         DatabaseConnector             connector = connectorFactory.getConnector(request.getDatabaseType());
         AbstractJdbcMetadataExtractor extractor = extractorFactory.getExtractor(request.getDatabaseType());
-
         try (Connection connection = connector.connect(request)) {
             return extractor.extract(request, connection);
         } catch (Exception e) {

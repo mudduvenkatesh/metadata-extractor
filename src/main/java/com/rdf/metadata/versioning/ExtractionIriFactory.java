@@ -5,7 +5,7 @@ import com.rdf.metadata.util.IriUtils;
 import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
 
-import java.time.Instant;
+import java.security.SecureRandom;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 
@@ -53,6 +53,18 @@ import java.time.format.DateTimeFormatter;
  * }</pre>
  */
 public final class ExtractionIriFactory {
+
+    /** Base URL for harvestor named graphs. */
+    public static final String HARVESTOR_BASE = "http://example.org/harvestor/";
+
+    /**
+     * Alphabet for 22-character random IRI suffixes.
+     * Base-62 (A-Z, a-z, 0-9) keeps the string URL-safe and compact.
+     */
+    private static final String ALPHABET =
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    private static final int    TOKEN_LEN = 22;
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     /** Timestamp format used in IRIs — URL-safe, sortable, millisecond precision. */
     private static final DateTimeFormatter TS_FMT =
@@ -133,5 +145,43 @@ public final class ExtractionIriFactory {
      */
     public static IRI vocabularyGraphIri(String base) {
         return VF.createIRI(base + "vocabulary/datarepository");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Harvestor named graph IRI
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Generate a unique named graph IRI for a SHACL shapes snapshot using the
+     * harvestor namespace and a 22-character base-62 random token.
+     *
+     * <h3>Pattern</h3>
+     * <pre>{@code
+     * http://example.org/harvestor/<22-char base-62 token>
+     *
+     * e.g. http://example.org/harvestor/aB3Xk9mZpQ7rLtNvYdCwJe
+     * }</pre>
+     *
+     * <h3>Why 22 characters?</h3>
+     * <p>22 base-62 characters encode ~131 bits of entropy — statistically
+     * collision-free even across billions of extractions. The token is URL-safe
+     * (A-Z, a-z, 0-9) with no padding or special characters.
+     *
+     * @return a fresh unique IRI each time it is called
+     */
+    public static IRI harvestorGraphIri() {
+        return VF.createIRI(HARVESTOR_BASE + randomToken());
+    }
+
+    /**
+     * Generate a 22-character base-62 random token.
+     * Uses {@link SecureRandom} to ensure uniqueness.
+     */
+    public static String randomToken() {
+        StringBuilder sb = new StringBuilder(TOKEN_LEN);
+        for (int i = 0; i < TOKEN_LEN; i++) {
+            sb.append(ALPHABET.charAt(RANDOM.nextInt(ALPHABET.length())));
+        }
+        return sb.toString();
     }
 }
