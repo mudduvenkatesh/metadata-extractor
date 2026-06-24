@@ -82,6 +82,41 @@ class VaultSecretServiceTest {
         assertThat(resolved).isEqualTo("secret/data/app/prod/snowflake");
     }
 
+
+    @Test
+    @DisplayName("Trailing slash on kvEngine is stripped")
+    void shouldStripTrailingSlashFromEngine() {
+        vaultProperties.setKvVersion(2);
+        vaultProperties.setKvEngine("secret/");   // trailing slash
+        vaultProperties.setSecretPathPrefix("");
+
+        String resolved = vaultSecretService.resolvePath("prod/snowflake");
+        assertThat(resolved).isEqualTo("secret/data/prod/snowflake");
+    }
+
+    @Test
+    @DisplayName("Multiple slashes on prefix are stripped to single segments")
+    void shouldStripMultipleSlashesFromPrefix() {
+        vaultProperties.setKvVersion(2);
+        vaultProperties.setKvEngine("secret");
+        vaultProperties.setSecretPathPrefix("//rdf-extractor//");  // extra slashes
+
+        String resolved = vaultSecretService.resolvePath("prod/snowflake");
+        assertThat(resolved).isEqualTo("secret/data/rdf-extractor/prod/snowflake");
+    }
+
+    @Test
+    @DisplayName("stripSlashes utility: removes leading and trailing slashes only")
+    void stripSlashesUtility() {
+        assertThat(VaultSecretService.stripSlashes("//secret//")).isEqualTo("secret");
+        assertThat(VaultSecretService.stripSlashes("secret"))    .isEqualTo("secret");
+        assertThat(VaultSecretService.stripSlashes("/"))         .isEqualTo("");
+        assertThat(VaultSecretService.stripSlashes(""))          .isEqualTo("");
+        assertThat(VaultSecretService.stripSlashes(null))        .isEqualTo("");
+        // Internal slashes must NOT be removed
+        assertThat(VaultSecretService.stripSlashes("/a/b/c/"))   .isEqualTo("a/b/c");
+    }
+
     // ─── Successful secret reads ──────────────────────────────────────────────
 
     @Test

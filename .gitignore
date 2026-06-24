@@ -1,0 +1,63 @@
+# ── Maven build output ────────────────────────────────────────────────────────
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# ── IDE — IntelliJ IDEA ───────────────────────────────────────────────────────
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# ── IDE — Eclipse ─────────────────────────────────────────────────────────────
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings/
+.springBeans
+.sts4-cache
+
+# ── IDE — VS Code ─────────────────────────────────────────────────────────────
+.vscode/
+
+# ── IDE — NetBeans ────────────────────────────────────────────────────────────
+nbactions.xml
+
+# ── Spring Boot ───────────────────────────────────────────────────────────────
+spring-shell.log
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── RDF output files ──────────────────────────────────────────────────────────
+output/
+*.ttl
+*.rdf
+*.jsonld
+*.nt
+*.trig
+
+# ── OS generated ──────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V8
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ── Environment / secrets — never commit credentials ─────────────────────────
+.env
+.env.*
+*.p8
+*.pem
+*.key
+*.jks
+*.p12
+*.pfx
+
+# ── Maven wrapper ─────────────────────────────────────────────────────────────
+!.mvn/wrapper/maven-wrapper.properties

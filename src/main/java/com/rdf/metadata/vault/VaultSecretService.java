@@ -21,38 +21,20 @@ import java.util.Map;
  *   KV v1:  &lt;kvEngine&gt;/&lt;prefix&gt;/&lt;vaultSecretPath&gt;
  * </pre>
  *
- * <p>Expected fields inside the secret (all optional, presence depends on auth mode):
+ * <p>Expected fields inside the secret (all optional):
  * <pre>
  *   privateKey             — PKCS#8 PEM string or Base64 DER for key pair auth
  *   privateKeyPassphrase   — passphrase for encrypted keys
  *   password               — Snowflake password for password auth
  * </pre>
- *
- * <h3>Example: write a key pair secret to Vault</h3>
- * <pre>{@code
- * # KV v2
- * vault kv put secret/rdf-extractor/snowflake/prod-connection \
- *     privateKey=@/path/to/rsa_key.p8 \
- *     privateKeyPassphrase="my_optional_passphrase"
- *
- * # KV v1
- * vault write secret/rdf-extractor/snowflake/prod-connection \
- *     privateKey=@/path/to/rsa_key.p8
- * }</pre>
- *
- * <h3>Example: write a password secret to Vault</h3>
- * <pre>{@code
- * vault kv put secret/rdf-extractor/snowflake/dev-connection \
- *     password="snowflake_dev_password"
- * }</pre>
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class VaultSecretService {
 
-    private final VaultTemplate    vaultTemplate;
-    private final VaultProperties  vaultProperties;
+    private final VaultTemplate   vaultTemplate;
+    private final VaultProperties vaultProperties;
 
     /**
      * Read Snowflake credentials from Vault at the given secret path.
@@ -67,9 +49,9 @@ public class VaultSecretService {
 
         Map<String, Object> data = fetchSecretData(fullPath);
 
-        String privateKey            = stringValue(data, VaultSecretFields.PRIVATE_KEY);
-        String privateKeyPassphrase  = stringValue(data, VaultSecretFields.PRIVATE_KEY_PASSPHRASE);
-        String password              = stringValue(data, VaultSecretFields.PASSWORD);
+        String privateKey           = stringValue(data, VaultSecretFields.PRIVATE_KEY);
+        String privateKeyPassphrase = stringValue(data, VaultSecretFields.PRIVATE_KEY_PASSPHRASE);
+        String password             = stringValue(data, VaultSecretFields.PASSWORD);
 
         log.debug("Vault secret resolved: hasPrivateKey={}, hasPassphrase={}, hasPassword={}",
                 privateKey != null, privateKeyPassphrase != null, password != null);
@@ -90,19 +72,41 @@ public class VaultSecretService {
      * </ul>
      */
     String resolvePath(String rawSecretPath) {
-        String engine  = vaultProperties.getKvEngine().stripTrailing("/");
+        // Remove all leading/trailing '/' from each segment before joining
+        String engine  = stripSlashes(vaultProperties.getKvEngine());
         String prefix  = vaultProperties.getSecretPathPrefix();
-        String relPath = rawSecretPath.strip();
+        String relPath = rawSecretPath == null ? "" : rawSecretPath.strip();
 
-        // Strip leading slashes from each segment to avoid double-slashes
-        prefix  = prefix.isBlank()  ? "" : prefix.strip("/").strip() + "/";
-        relPath = relPath.startsWith("/") ? relPath.substring(1) : relPath;
+        // Normalise prefix: empty string when blank, otherwise strip slashes and add trailing /
+        String normPrefix = (prefix == null || prefix.isBlank())
+                ? ""
+                : stripSlashes(prefix) + "/";
+
+        // Strip any leading slash from the raw secret path segment
+        if (relPath.startsWith("/")) {
+            relPath = relPath.substring(1);
+        }
 
         if (vaultProperties.getKvVersion() == 2) {
-            return engine + "/data/" + prefix + relPath;
+            return engine + "/data/" + normPrefix + relPath;
         }
         // KV v1
-        return engine + "/" + prefix + relPath;
+        return engine + "/" + normPrefix + relPath;
+    }
+
+    /**
+     * Remove all leading and trailing {@code /} characters from a path segment.
+     * e.g. {@code "//secret/"} → {@code "secret"}
+     * <p>
+     * Uses index scanning rather than regex to avoid allocations on the hot path.
+     */
+    static String stripSlashes(String value) {
+        if (value == null || value.isEmpty()) return "";
+        int start = 0;
+        int end   = value.length();
+        while (start < end && value.charAt(start) == '/') start++;
+        while (end > start && value.charAt(end - 1) == '/') end--;
+        return value.substring(start, end);
     }
 
     // ─────────────────────────────────────────────────────────────────────────

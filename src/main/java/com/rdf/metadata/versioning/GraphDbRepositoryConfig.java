@@ -23,7 +23,6 @@ import java.util.Base64;
  * <pre>
  * http://&lt;host&gt;:7200/repositories/&lt;repositoryId&gt;
  * </pre>
- * GraphDB exposes a standard RDF4J Server API at this path.
  *
  * <h3>Authentication</h3>
  * HTTP Basic auth credentials are injected via {@link GraphDbProperties}.
@@ -50,7 +49,7 @@ public class GraphDbRepositoryConfig {
      */
     @Bean(destroyMethod = "shutDown")
     public Repository graphDbRepository() {
-        String repoUrl = graphDbProperties.getServerUrl().stripTrailing("/")
+        String repoUrl = stripTrailingSlash(graphDbProperties.getServerUrl())
                        + "/repositories/"
                        + graphDbProperties.getRepositoryId();
 
@@ -62,14 +61,12 @@ public class GraphDbRepositoryConfig {
 
         HTTPRepository repository = new HTTPRepository(repoUrl);
 
-        // Inject credentials if provided
         if (isSet(graphDbProperties.getUsername())) {
             repository.setUsernameAndPassword(
                     graphDbProperties.getUsername(),
                     graphDbProperties.getPassword());
         }
 
-        // Apply connection/read timeouts via the underlying HTTP client
         repository.setAdditionalHttpHeaders(
                 java.util.Map.of("Connection", "keep-alive"));
 
@@ -92,13 +89,9 @@ public class GraphDbRepositoryConfig {
     /**
      * Attempt to create the repository via the GraphDB REST management API
      * if it does not already exist.
-     *
-     * <p>Uses the GraphDB native {@code /rest/repositories} endpoint (not the RDF4J API).
-     * Creates an {@code owl-horst-optimized} (OWL2-RL) repository by default —
-     * suitable for ontology-aware querying.
      */
     private void ensureRepositoryExists() {
-        String managementUrl = graphDbProperties.getServerUrl().stripTrailing("/")
+        String managementUrl = stripTrailingSlash(graphDbProperties.getServerUrl())
                              + "/rest/repositories";
         String repoId        = graphDbProperties.getRepositoryId();
 
@@ -107,7 +100,6 @@ public class GraphDbRepositoryConfig {
         RestClient client = buildRestClient();
 
         try {
-            // Check if repository already exists
             String listResponse = client.get()
                     .uri(managementUrl)
                     .retrieve()
@@ -118,13 +110,10 @@ public class GraphDbRepositoryConfig {
                 return;
             }
 
-            // Create repository using Turtle configuration (GraphDB native format)
-            String repoConfig = buildRepositoryConfig(repoId);
-
             client.post()
                     .uri(managementUrl)
                     .contentType(MediaType.parseMediaType("application/json"))
-                    .body(repoConfig)
+                    .body(buildRepositoryConfig(repoId))
                     .retrieve()
                     .toBodilessEntity();
 
@@ -136,10 +125,6 @@ public class GraphDbRepositoryConfig {
         }
     }
 
-    /**
-     * Build a GraphDB repository creation JSON payload.
-     * Creates an {@code owl-horst-optimized} repository (OWL2-RL inference).
-     */
     private String buildRepositoryConfig(String repoId) {
         return """
                 {
@@ -173,6 +158,20 @@ public class GraphDbRepositoryConfig {
         }
 
         return builder.build();
+    }
+
+    /**
+     * Remove all trailing {@code /} characters from a URL string.
+     * e.g. {@code "http://localhost:7200/"} → {@code "http://localhost:7200"}
+     * <p>
+     * Uses index scanning — {@code String.stripTrailing()} removes only
+     * whitespace and takes no arguments.
+     */
+    private static String stripTrailingSlash(String url) {
+        if (url == null) return "";
+        int end = url.length();
+        while (end > 0 && url.charAt(end - 1) == '/') end--;
+        return url.substring(0, end);
     }
 
     private boolean isSet(String v) {

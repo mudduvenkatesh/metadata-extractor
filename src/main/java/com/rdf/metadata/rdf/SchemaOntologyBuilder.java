@@ -214,7 +214,7 @@ public class SchemaOntologyBuilder {
         add(model, restriction, RDF.TYPE,       OWL.RESTRICTION);
         add(model, restriction, OWL.ONPROPERTY, propIri);
         add(model, restriction, cardinalityProp,
-                VF.createLiteral(card, XSD.NON_NEGATIVE_INTEGER));
+                VF.createLiteral(String.valueOf(card), XSD.NON_NEGATIVE_INTEGER));
         add(model, domainClass, RDFS.SUBCLASSOF, restriction);
     }
 
